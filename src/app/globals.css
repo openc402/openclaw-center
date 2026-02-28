@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #07070d;
+  --bg-secondary: #0e0e16;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --border: rgba(255, 255, 255, 0.06);
+  --text-1: #e4e4e7;
+  --text-2: #71717a;
+  --accent: #8b5cf6;
+  --green: #22c55e;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --blue: #3b82f6;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-1);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+.glass {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.glass-sm {
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+/* Live pulse */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.live-dot {
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+/* Status colors */
+.status-running { color: var(--green); }
+.status-pending { color: var(--yellow); }
+.status-failed { color: var(--red); }
+.status-idle { color: var(--text-2); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+
+/* Activity feed animation */
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.feed-item {
+  animation: slide-in 0.3s ease-out;
+}
+
+/* Glow */
+.glow-purple { box-shadow: 0 0 30px rgba(139,92,246,0.1); }
+.glow-green { box-shadow: 0 0 20px rgba(34,197,94,0.1); }
