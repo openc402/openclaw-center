@@ -9,7 +9,6 @@ import { mockAgents, mockActivity, mockTasks, mockGoals, mockStats, mockAlerts }
 export default function CommandCenter() {
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold">🎛️ Command Center</h1>
@@ -20,26 +19,17 @@ export default function CommandCenter() {
           <span className="text-sm text-green-400">System Online</span>
         </div>
       </div>
-
-      {/* Stats bar */}
       <StatsBar stats={mockStats} />
-
-      {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column — Activity */}
         <div className="lg:col-span-2 space-y-6">
           <ActivityFeed events={mockActivity} />
           <TaskPipelineView tasks={mockTasks} />
         </div>
-
-        {/* Right column — Agents + Alerts */}
         <div className="space-y-6">
           <AgentPanel agents={mockAgents} />
           <AlertsPanel alerts={mockAlerts} />
         </div>
       </div>
-
-      {/* Goal tracker — full width */}
       <GoalTree root={mockGoals} />
     </div>
   );

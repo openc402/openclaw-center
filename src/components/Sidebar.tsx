@@ -6,10 +6,8 @@ const nav = [
   { href: '/', label: 'Command Center', icon: '🎛️' },
   { href: '/agents', label: 'Agents', icon: '🤖' },
   { href: '/goals', label: 'Goal Tracker', icon: '🎯' },
-  { href: '/airdrops', label: 'Airdrops', icon: '🪂' },
-  { href: '/farming', label: 'Farming', icon: '⚡' },
-  { href: '/wallet', label: 'Wallet', icon: '💰' },
-  { href: '/gas', label: 'Gas Tracker', icon: '⛽' },
+  { href: '/replay', label: 'Replay', icon: '⏪' },
+  { href: '/settings', label: 'Settings', icon: '⚙️' },
 ];
 
 export default function Sidebar() {
