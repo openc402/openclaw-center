@@ -1,0 +1,5 @@
+1:"$Sreact.fragment"
+2:I[97367,["/openclaw-center/_next/static/chunks/ff1a16fafef87110.js","/openclaw-center/_next/static/chunks/d2be314c3ece3fbe.js"],"OutletBoundary"]
+3:"$Sreact.suspense"
+0:{"buildId":"2yXHGQDrmC87i_pEmwWfu","rsc":["$","$1","c",{"children":[["$","div",null,{"className":"space-y-6","children":[["$","div",null,{"children":[["$","h1",null,{"className":"text-2xl font-bold","children":"⚙️ Settings"}],["$","p",null,{"className":"text-zinc-500 text-sm","children":"Configuration and preferences"}]]}],["$","div",null,{"className":"glass p-8 text-center text-zinc-500","children":[["$","p",null,{"className":"text-4xl mb-4","children":"⚙️"}],["$","p",null,{"children":"Notification prefs, API connections, theme settings"}],["$","p",null,{"className":"text-xs mt-2 text-zinc-600","children":"Coming soon"}]]}]]}],null,["$","$L2",null,{"children":["$","$3",null,{"name":"Next.MetadataOutlet","children":"$@4"}]}]]}],"loading":null,"isPartial":false}
+4:null

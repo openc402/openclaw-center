@@ -1,0 +1,40 @@
+name: Deploy to GitHub Pages
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://bchqfuidxhypclaminib.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjaHFmdWlkeGh5cGNsYW1pbmliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyOTY3MDksImV4cCI6MjA4Nzg3MjcwOX0.3B6xDHDwGqGVGiC9K0AAdysCTdf3stPDBv2P0zv6Jxw
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://bchqfuidxhypclaminib.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjaHFmdWlkeGh5cGNsYW1pbmliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIyOTY3MDksImV4cCI6MjA4Nzg3MjcwOX0.3B6xDHDwGqGVGiC9K0AAdysCTdf3stPDBv2P0zv6Jxw
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment
