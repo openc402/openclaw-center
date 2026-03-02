@@ -1,4 +1,4 @@
 1:"$Sreact.fragment"
-2:I[39756,["/openclaw-center/_next/static/chunks/4f7408b91b7bd569.js","/openclaw-center/_next/static/chunks/3b4abd503328550b.js","/openclaw-center/_next/static/chunks/d2be314c3ece3fbe.js"],"default"]
-3:I[37457,["/openclaw-center/_next/static/chunks/4f7408b91b7bd569.js","/openclaw-center/_next/static/chunks/3b4abd503328550b.js","/openclaw-center/_next/static/chunks/d2be314c3ece3fbe.js"],"default"]
-0:{"buildId":"kVfIXyeDo-vHoE3UIGgKu","rsc":["$","$1","c",{"children":[null,["$","$L2",null,{"parallelRouterKey":"children","template":["$","$L3",null,{}]}]]}],"loading":null,"isPartial":false}
+2:I[40030,["/openclaw-center/_next/static/chunks/4c3416d131cf35c0.js","/openclaw-center/_next/static/chunks/e501b277ef55ee9d.js","/openclaw-center/_next/static/chunks/1a05869d3be7e21b.js"],"default"]
+3:I[67312,["/openclaw-center/_next/static/chunks/4c3416d131cf35c0.js","/openclaw-center/_next/static/chunks/e501b277ef55ee9d.js","/openclaw-center/_next/static/chunks/1a05869d3be7e21b.js"],"default"]
+0:{"buildId":"OiX939hb9VxvHyTFVcStw","rsc":["$","$1","c",{"children":[null,["$","$L2",null,{"parallelRouterKey":"children","template":["$","$L3",null,{}]}]]}],"loading":null,"isPartial":false}
