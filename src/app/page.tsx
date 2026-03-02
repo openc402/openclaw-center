@@ -1,150 +1,175 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { getAgentStatus, getActivityLog, getGoals, getSubAgents } from '@/lib/api';
+import { useEffect, useState, useRef } from 'react';
+import { supabase } from '@/lib/supabase';
 
-function timeAgo(date: string) {
-  const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
-  if (s < 60) return `${s}s ago`;
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
+interface StreamEntry {
+  id: number;
+  task_id: string;
+  type: string;
+  content: string;
+  created_at: string;
 }
 
-const catIcons: Record<string, string> = {
-  setup: '🔧', build: '🏗️', deploy: '🚀', database: '🗄️', farming: '🤖', chat: '💬', error: '❌', system: '⚙️',
+interface AgentStatus {
+  status: string;
+  current_task: string;
+  model: string;
+  last_active: string;
+}
+
+const typeStyles: Record<string, { icon: string; color: string; bg: string }> = {
+  start:    { icon: '🚀', color: 'text-green-400',  bg: 'border-l-green-500/50' },
+  thought:  { icon: '💭', color: 'text-zinc-300',   bg: 'border-l-zinc-500/30' },
+  action:   { icon: '⚡', color: 'text-blue-400',   bg: 'border-l-blue-500/50' },
+  decision: { icon: '🧠', color: 'text-purple-400', bg: 'border-l-purple-500/50' },
+  subtask:  { icon: '🔀', color: 'text-cyan-400',   bg: 'border-l-cyan-500/50' },
+  result:   { icon: '✅', color: 'text-green-400',  bg: 'border-l-green-500/50' },
+  error:    { icon: '❌', color: 'text-red-400',    bg: 'border-l-red-500/50' },
+  end:      { icon: '🏁', color: 'text-yellow-400', bg: 'border-l-yellow-500/50' },
 };
 
+function timeStr(date: string) {
+  return new Date(date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function timeSince(date: string) {
+  const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (s < 5) return 'just now';
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  return `${Math.floor(s / 3600)}h ago`;
+}
+
 export default function CommandCenter() {
-  const [agent, setAgent] = useState<any>(null);
-  const [log, setLog] = useState<any[]>([]);
-  const [goals, setGoals] = useState<any[]>([]);
-  const [subAgents, setSubAgents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [stream, setStream] = useState<StreamEntry[]>([]);
+  const [agent, setAgent] = useState<AgentStatus | null>(null);
+  const [connected, setConnected] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const [lastActiveAgo, setLastActiveAgo] = useState('');
 
-  const load = async () => {
-    const [a, l, g, s] = await Promise.all([getAgentStatus(), getActivityLog(20), getGoals(), getSubAgents()]);
-    setAgent(a);
-    setLog(l);
-    setGoals(g);
-    setSubAgents(s);
-    setLoading(false);
-  };
-
+  // Load initial data
   useEffect(() => {
-    load();
-    const i = setInterval(load, 15000); // Poll every 15s
-    return () => clearInterval(i);
+    // Fetch agent status
+    supabase.from('agent_status').select('*').eq('id', 'main').single()
+      .then(({ data }) => { if (data) setAgent(data); });
+
+    // Fetch recent stream (last 50 entries)
+    supabase.from('live_stream').select('*').order('created_at', { ascending: true }).limit(50)
+      .then(({ data }) => { if (data) setStream(data); });
   }, []);
 
-  if (loading) return <div className="flex items-center justify-center h-96"><div className="text-zinc-500 flex items-center gap-3"><div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />Loading agent data...</div></div>;
+  // Supabase Realtime subscription
+  useEffect(() => {
+    const channel = supabase.channel('live-feed')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'live_stream' }, (payload) => {
+        setStream(prev => [...prev.slice(-100), payload.new as StreamEntry]);
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'agent_status' }, (payload) => {
+        setAgent(payload.new as AgentStatus);
+      })
+      .subscribe((status) => {
+        setConnected(status === 'SUBSCRIBED');
+      });
 
-  const topGoals = goals.filter(g => !g.parent_id);
-  const uptime = agent?.uptime_start ? Math.floor((Date.now() - new Date(agent.uptime_start).getTime()) / 3600000) : 0;
-  const isOnline = agent?.status === 'online';
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  // Auto-scroll to bottom on new entries
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [stream]);
+
+  // Update "last active" display every second
+  useEffect(() => {
+    const i = setInterval(() => {
+      if (agent?.last_active) setLastActiveAgo(timeSince(agent.last_active));
+    }, 1000);
+    return () => clearInterval(i);
+  }, [agent?.last_active]);
+
+  const isWorking = agent?.status === 'working';
+  const isOnline = agent?.status === 'online' || isWorking;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+    <div className="flex flex-col h-[calc(100vh-4rem)] md:h-[calc(100vh-3rem)]">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4">
         <div>
-          <h1 className="text-2xl font-bold">🎛️ Command Center</h1>
-          <p className="text-zinc-500 text-sm">Real-time agent operations — auto-refresh 15s</p>
+          <h1 className="text-2xl font-bold">🎛️ Live Feed</h1>
+          <p className="text-zinc-500 text-sm">Supabase Realtime — watching me think</p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`} />
-          <span className={`text-sm font-medium ${isOnline ? 'text-green-400' : 'text-red-400'}`}>{isOnline ? 'Online' : 'Offline'}</span>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        {[
-          { title: 'Status', value: agent?.status || 'unknown', icon: '🟢', color: 'text-green-400' },
-          { title: 'Model', value: agent?.model || '—', icon: '🧠', color: 'text-purple-400' },
-          { title: 'Current Task', value: agent?.current_task || 'Idle', icon: '⚡', color: 'text-blue-400' },
-          { title: 'Uptime', value: `${uptime}h`, icon: '⏱️', color: 'text-yellow-400' },
-        ].map((s) => (
-          <div key={s.title} className="glass p-4">
-            <div className="flex justify-between items-start mb-2">
-              <span className="text-zinc-600 text-xs">{s.title}</span>
-              <span className="text-lg">{s.icon}</span>
-            </div>
-            <p className={`text-sm font-semibold ${s.color} truncate`}>{s.value}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Activity Feed */}
-        <div className="lg:col-span-2 glass p-4 md:p-5">
-          <h2 className="font-semibold mb-4">📋 Activity Feed <span className="text-[10px] text-green-400 ml-1">LIVE</span></h2>
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {log.map((entry) => (
-              <div key={entry.id} className="flex gap-3 items-start">
-                <span className="text-lg mt-0.5">{catIcons[entry.category] || '📌'}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{entry.action}</p>
-                  {entry.details && <p className="text-xs text-zinc-500 truncate">{entry.details}</p>}
-                </div>
-                <span className="text-[11px] text-zinc-600 whitespace-nowrap">{timeAgo(entry.created_at)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Goals summary */}
-        <div className="glass p-4 md:p-5">
-          <h2 className="font-semibold mb-4">🎯 Active Goals</h2>
-          <div className="space-y-4">
-            {topGoals.map((g) => {
-              const children = goals.filter(c => c.parent_id === g.id);
-              const completed = children.filter(c => c.status === 'completed').length;
-              return (
-                <div key={g.id}>
-                  <div className="flex justify-between items-start mb-1">
-                    <p className="text-sm font-medium">{g.title}</p>
-                    <span className={`text-[11px] px-2 py-0.5 rounded-full ${
-                      g.status === 'completed' ? 'badge-active' : g.status === 'active' ? 'badge-upcoming' : 'badge-ended'
-                    }`}>{g.progress}%</span>
-                  </div>
-                  {children.length > 0 && (
-                    <p className="text-[11px] text-zinc-600 mb-1">{completed}/{children.length} sub-tasks done</p>
-                  )}
-                  <div className="h-1 bg-white/5 rounded-full overflow-hidden">
-                    <div className="h-full bg-purple-500 rounded-full transition-all" style={{ width: `${g.progress}%` }} />
-                  </div>
-                </div>
-              );
-            })}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-red-400'}`} />
+            <span className="text-[11px] text-zinc-600">{connected ? 'Realtime connected' : 'Connecting...'}</span>
           </div>
         </div>
       </div>
 
-      {/* Sub-agents */}
-      <div className="glass p-4 md:p-5">
-        <h2 className="font-semibold mb-4">🤖 Sub-Agents</h2>
-        {subAgents.length === 0 ? (
-          <p className="text-zinc-600 text-sm">No sub-agents running. They appear here when spawned.</p>
+      {/* Agent status bar */}
+      <div className={`glass p-3 mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 ${isWorking ? 'border-purple-500/20' : ''}`}>
+        <div className="flex items-center gap-3">
+          <div className={`w-3 h-3 rounded-full ${isWorking ? 'bg-purple-400 animate-pulse' : isOnline ? 'bg-green-400' : 'bg-red-400'}`} />
+          <div>
+            <span className={`text-sm font-medium ${isWorking ? 'text-purple-300' : isOnline ? 'text-green-400' : 'text-red-400'}`}>
+              {isWorking ? '🧠 Working' : isOnline ? 'Online' : 'Offline'}
+            </span>
+            {isWorking && agent?.current_task && (
+              <span className="text-xs text-zinc-500 ml-2">— {agent.current_task}</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-4 text-[11px] text-zinc-600">
+          <span>{agent?.model || '—'}</span>
+          <span>Last active: {lastActiveAgo || '—'}</span>
+        </div>
+      </div>
+
+      {/* Stream */}
+      <div className="flex-1 overflow-y-auto glass p-3 md:p-4 space-y-1">
+        {stream.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-zinc-600">
+            <p className="text-4xl mb-4">🧠</p>
+            <p className="font-medium">Waiting for agent activity...</p>
+            <p className="text-xs mt-2">Thoughts will appear here in real-time when I start working</p>
+            {isOnline && <p className="text-xs mt-1 text-green-400/50">Agent is online — ready to receive tasks</p>}
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {subAgents.map((sa) => (
-              <div key={sa.id} className="glass-sm p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <p className="text-sm font-medium">{sa.label || sa.id}</p>
-                  <span className={`text-[11px] px-2 py-0.5 rounded-full ${
-                    sa.status === 'running' ? 'badge-upcoming' : sa.status === 'completed' ? 'badge-active' : 'badge-ended'
-                  }`}>{sa.status}</span>
-                </div>
-                <p className="text-xs text-zinc-500 truncate">{sa.task}</p>
-                <div className="flex justify-between mt-2 text-[11px] text-zinc-600">
-                  <span>{sa.model || '—'}</span>
-                  <span>{sa.started_at ? timeAgo(sa.started_at) : ''}</span>
+          stream.map((entry) => {
+            const style = typeStyles[entry.type] || typeStyles.thought;
+            const isBookend = entry.type === 'start' || entry.type === 'end';
+            return (
+              <div key={entry.id} className={`flex gap-2 md:gap-3 items-start py-1.5 ${isBookend ? 'my-2' : ''}`}>
+                <span className="text-[11px] text-zinc-700 font-mono w-16 md:w-20 shrink-0 mt-0.5 hidden sm:block">
+                  {timeStr(entry.created_at)}
+                </span>
+                <div className={`flex-1 border-l-2 ${style.bg} pl-3 ${isBookend ? 'py-1' : ''}`}>
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm">{style.icon}</span>
+                    <p className={`text-sm ${isBookend ? 'font-semibold' : ''} ${style.color}`}>
+                      {entry.content}
+                    </p>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
+            );
+          })
         )}
+        <div ref={bottomRef} />
       </div>
+
+      {/* Typing indicator when working */}
+      {isWorking && (
+        <div className="mt-2 flex items-center gap-2 text-xs text-purple-400/70 px-2">
+          <div className="flex gap-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+          <span>thinking...</span>
+        </div>
+      )}
     </div>
   );
 }

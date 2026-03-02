@@ -1,35 +1,73 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getActivityLog } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 
-const catIcons: Record<string, string> = {
-  setup: '🔧', build: '🏗️', deploy: '🚀', database: '🗄️', farming: '🤖', chat: '💬', error: '❌', system: '⚙️',
+interface TaskSession {
+  id: string;
+  title: string;
+  summary: string;
+  status: string;
+  category: string;
+  started_at: string;
+  ended_at: string;
+}
+
+interface StreamEntry {
+  id: number;
+  task_id: string;
+  type: string;
+  content: string;
+  created_at: string;
+}
+
+const typeStyles: Record<string, { icon: string; color: string }> = {
+  start: { icon: '🚀', color: 'text-green-400' },
+  thought: { icon: '💭', color: 'text-zinc-300' },
+  action: { icon: '⚡', color: 'text-blue-400' },
+  decision: { icon: '🧠', color: 'text-purple-400' },
+  subtask: { icon: '🔀', color: 'text-cyan-400' },
+  result: { icon: '✅', color: 'text-green-400' },
+  error: { icon: '❌', color: 'text-red-400' },
+  end: { icon: '🏁', color: 'text-yellow-400' },
 };
-const catColors: Record<string, string> = {
-  setup: 'border-blue-500/30', build: 'border-purple-500/30', deploy: 'border-green-500/30',
-  database: 'border-yellow-500/30', farming: 'border-cyan-500/30', chat: 'border-pink-500/30',
-  error: 'border-red-500/30', system: 'border-zinc-500/30',
-};
+
+function duration(start: string, end: string) {
+  const ms = new Date(end).getTime() - new Date(start).getTime();
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ${s % 60}s`;
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`;
+}
 
 export default function ReplayPage() {
-  const [log, setLog] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<TaskSession[]>([]);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [entries, setEntries] = useState<StreamEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all');
+  const [loadingEntries, setLoadingEntries] = useState(false);
 
   useEffect(() => {
-    getActivityLog(100).then(l => { setLog(l); setLoading(false); });
+    supabase.from('task_sessions').select('*').order('started_at', { ascending: false }).limit(50)
+      .then(({ data }) => { setSessions(data || []); setLoading(false); });
   }, []);
 
-  const categories = ['all', ...new Set(log.map(l => l.category).filter(Boolean))];
-  const filtered = filter === 'all' ? log : log.filter(l => l.category === filter);
+  const toggleSession = async (id: string) => {
+    if (expanded === id) { setExpanded(null); return; }
+    setExpanded(id);
+    setLoadingEntries(true);
+    const { data } = await supabase.from('live_stream').select('*')
+      .eq('task_id', id).order('created_at', { ascending: true });
+    setEntries(data || []);
+    setLoadingEntries(false);
+  };
 
-  // Group by date
-  const grouped: Record<string, any[]> = {};
-  for (const entry of filtered) {
-    const date = new Date(entry.created_at).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  // Group sessions by date
+  const grouped: Record<string, TaskSession[]> = {};
+  for (const s of sessions) {
+    const date = new Date(s.started_at).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     if (!grouped[date]) grouped[date] = [];
-    grouped[date].push(entry);
+    grouped[date].push(s);
   }
 
   if (loading) return <div className="flex items-center justify-center h-96"><div className="text-zinc-500">Loading replay...</div></div>;
@@ -38,47 +76,82 @@ export default function ReplayPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">⏪ Replay</h1>
-        <p className="text-zinc-500 text-sm">Full activity timeline — every action logged</p>
+        <p className="text-zinc-500 text-sm">Click on a task to see the full thought process</p>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 flex-wrap">
-        {categories.map((c) => (
-          <button key={c} onClick={() => setFilter(c)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
-              filter === c ? 'bg-purple-500/20 text-purple-300' : 'bg-white/5 text-zinc-500 hover:text-zinc-300'
-            }`}>
-            {c === 'all' ? '📋 All' : `${catIcons[c] || '📌'} ${c}`}
-          </button>
-        ))}
-      </div>
-
-      {/* Timeline */}
-      <div className="space-y-6">
-        {Object.entries(grouped).map(([date, entries]) => (
-          <div key={date}>
-            <h3 className="text-sm font-medium text-zinc-500 mb-3 sticky top-0 bg-[#07070d] py-2 z-10">{date}</h3>
-            <div className="space-y-2 ml-2 border-l-2 border-white/5">
-              {entries.map((entry) => (
-                <div key={entry.id} className={`ml-4 glass p-4 border-l-2 ${catColors[entry.category] || 'border-zinc-500/30'}`}>
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
-                    <div className="flex items-start gap-2">
-                      <span className="text-lg">{catIcons[entry.category] || '📌'}</span>
-                      <div>
-                        <p className="text-sm font-medium">{entry.action}</p>
-                        {entry.details && <p className="text-xs text-zinc-500 mt-0.5">{entry.details}</p>}
+      {sessions.length === 0 ? (
+        <div className="glass p-8 text-center text-zinc-500">
+          <p className="text-4xl mb-4">⏪</p>
+          <p className="font-medium">No task sessions yet</p>
+          <p className="text-xs mt-2 text-zinc-600">Completed tasks will appear here with full replay</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(grouped).map(([date, dateSessions]) => (
+            <div key={date}>
+              <h3 className="text-sm font-medium text-zinc-500 mb-3 capitalize">{date}</h3>
+              <div className="space-y-2">
+                {dateSessions.map((s) => (
+                  <div key={s.id} className="glass overflow-hidden">
+                    {/* Task header - clickable */}
+                    <button
+                      onClick={() => toggleSession(s.id)}
+                      className="w-full p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-left hover:bg-white/[0.02] transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={`text-lg ${s.status === 'completed' ? '' : 'animate-pulse'}`}>
+                          {s.status === 'completed' ? '✅' : '🔄'}
+                        </span>
+                        <div>
+                          <p className="text-sm font-medium">{s.title}</p>
+                          {s.summary && <p className="text-xs text-zinc-500 mt-0.5">{s.summary}</p>}
+                        </div>
                       </div>
-                    </div>
-                    <span className="text-[11px] text-zinc-600 whitespace-nowrap">
-                      {new Date(entry.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
+                      <div className="flex items-center gap-3 text-[11px] text-zinc-600">
+                        {s.ended_at && (
+                          <span className="px-2 py-0.5 rounded-full bg-white/5">
+                            ⏱ {duration(s.started_at, s.ended_at)}
+                          </span>
+                        )}
+                        <span>
+                          {new Date(s.started_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <span className={`transition-transform ${expanded === s.id ? 'rotate-180' : ''}`}>▼</span>
+                      </div>
+                    </button>
+
+                    {/* Expanded: full thought stream */}
+                    {expanded === s.id && (
+                      <div className="border-t border-white/5 p-4 bg-black/20">
+                        {loadingEntries ? (
+                          <p className="text-zinc-600 text-sm">Loading thoughts...</p>
+                        ) : entries.length === 0 ? (
+                          <p className="text-zinc-600 text-sm">No stream entries for this task</p>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {entries.map((e) => {
+                              const st = typeStyles[e.type] || typeStyles.thought;
+                              return (
+                                <div key={e.id} className="flex gap-2 items-start">
+                                  <span className="text-[11px] text-zinc-700 font-mono w-16 shrink-0 mt-0.5 hidden sm:block">
+                                    {new Date(e.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                  </span>
+                                  <span className="text-sm">{st.icon}</span>
+                                  <p className={`text-sm ${st.color}`}>{e.content}</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
